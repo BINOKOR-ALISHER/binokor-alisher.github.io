@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Оплаты Бинокор</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root { --bg: #ffffff; --tx: #1b1f23; --hint: #6b7378; --card: #f2f4f5; --line: #dde2e4; --acc: #0f7c8c; --acc-tx: #ffffff; --warn: #fff4d6; --bad: #fde2e2; --ok: #e3f4e1; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #17212b; --tx: #e9eef2; --hint: #8a98a5; --card: #232e3c; --line: #31404f; --acc: #3aa0b0; --warn: #4a3f1c; --bad: #4d2626; --ok: #22402a; } }
+  * { box-sizing: border-box; min-width: 0; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body { margin: 0; font: 16px/1.35 -apple-system, system-ui, Roboto, "Segoe UI", sans-serif; background: var(--bg); color: var(--tx); }
+  .wrap { padding: 12px 12px 110px; width: 100%; max-width: 560px; margin: 0 auto; overflow-wrap: anywhere; word-break: break-word; }
+  h1 { font-size: 19px; margin: 4px 0 2px; }
+  .sub { color: var(--hint); font-size: 13px; margin-bottom: 12px; }
+  label { display: block; font-size: 13px; color: var(--hint); margin: 12px 0 4px; }
+  input, textarea { display: block; max-width: 100%; -webkit-appearance: none; appearance: none; min-height: 44px; width: 100%; font: inherit; color: var(--tx); background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; outline: none; }
+  input:focus, textarea:focus { border-color: var(--acc); }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1 1 0; min-width: 0; }
+  .row > .narrow { flex: 0 0 34%; }
+  .seg { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { flex: 1 1 0; min-width: 0; white-space: normal; border: 0; background: transparent; color: var(--tx); font: inherit; padding: 10px 4px; }
+  .seg button.on { background: var(--acc); color: var(--acc-tx); font-weight: 600; }
+  .photo { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 96px; border: 2px dashed var(--line); border-radius: 12px; color: var(--hint); text-align: center; padding: 10px; position: relative; overflow: hidden; }
+  .photo img { max-height: 160px; max-width: 100%; border-radius: 8px; }
+  .photo input { position: absolute; inset: 0; opacity: 0; }
+  .list { margin-top: 6px; border: 1px solid var(--line); border-radius: 10px; max-height: 300px; overflow-y: auto; }
+  .it { padding: 11px 12px; border-bottom: 1px solid var(--line); }
+  .it:last-child { border-bottom: 0; }
+  .it.on { background: var(--ok); font-weight: 600; }
+  input.chosen { border: 2px solid #2e9e5b; background: var(--ok); font-weight: 600; }
+  .it { cursor: pointer; -webkit-tap-highlight-color: rgba(15,124,140,.25); user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  .it small { display: block; color: var(--hint); font-weight: 400; font-size: 12px; }
+  .tag { font-size: 11px; background: var(--acc); color: var(--acc-tx); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; }
+  .note { border-radius: 10px; padding: 10px 12px; margin: 10px 0; font-size: 14px; }
+  .warn { background: var(--warn); } .bad { background: var(--bad); } .good { background: var(--ok); }
+  .dest button { font-weight: 600; letter-spacing: .2px; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); }
+  .bar button, .btn { width: 100%; border: 0; border-radius: 12px; padding: 14px; font: inherit; font-weight: 600; background: var(--acc); color: var(--acc-tx); }
+  .bar button:disabled { opacity: .45; }
+  .btn2 { background: var(--card); color: var(--tx); border: 1px solid var(--line); margin-top: 8px; }
+  .hid { display: none !important; }
+  .ms { color: var(--hint); font-size: 11px; text-align: center; margin-top: 18px; }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--hint); border-top-color: transparent; border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <h1 id="title">Оплаты Бинокор</h1>
+  <div class="sub" id="who"><span class="spin"></span> открываю…</div>
+  <div id="err" class="note bad hid"></div>
+
+  <div id="form" class="hid">
+    <label>Куда</label>
+    <div class="seg dest" id="dest"><button data-v="kafel" class="on">Binokor kafel</button><button data-v="magazin">Binokor magazin</button></div>
+    <div id="photoBox">
+      <label>Фото платёжки</label>
+      <div class="photo" id="photo"><img id="prev" class="hid" alt=""><span id="photoTxt">📎 Нажмите, чтобы прикрепить фото</span><input type="file" id="file" accept="image/*"></div>
+      <div id="readNote" class="note hid"></div>
+    </div>
+
+    <div class="row">
+      <div><label>Сумма</label><input id="sum" inputmode="decimal" autocomplete="off" placeholder="0"></div>
+      <div class="narrow"><label>Валюта</label><div class="seg" id="cur"><button data-v="Сум" class="on">Сум</button><button data-v="USD">USD</button></div></div>
+    </div>
+    <label>Дата платежа</label><input id="date" type="date">
+    <div id="firmBox">
+      <div class="row">
+        <div><label id="firmLbl">Фирма-получатель</label><input id="firm" autocomplete="off"></div>
+        <div class="narrow"><label>ИНН</label><input id="inn" inputmode="numeric" maxlength="9" autocomplete="off"></div>
+      </div>
+    </div>
+
+    <div id="supBox">
+    <label>Поставщик</label>
+    <input id="q" placeholder="Начните вводить, например «Су»" autocomplete="off">
+    <div class="list" id="list"></div>
+    <div id="debt" class="sub" style="margin:6px 0 0"></div>
+    </div>
+
+    <div id="rateBox">
+      <label id="rateLbl">Курс</label><input id="rate" inputmode="numeric" autocomplete="off">
+      <label>Очерёдность погашения</label>
+      <div class="seg" id="order"><button data-v="Сначала USD" class="on">Сначала USD</button><button data-v="Сначала сум">Сначала сум</button></div>
+    </div>
+    <label>Комментарий</label><input id="cmt" autocomplete="off" maxlength="200" placeholder="необязательно">
+    <div id="dupBox" class="note warn hid"></div>
+    <div class="ms" id="ms"></div>
+  </div>
+
+  <div id="done" class="hid">
+    <div class="note good" id="doneTxt"></div>
+    <button class="btn" id="again">Внести ещё</button>
+    <button class="btn btn2" id="close">Закрыть</button>
+  </div>
+</div>
+<div class="bar hid" id="bar"><button id="save" disabled>Записать</button><button id="force" class="btn2 hid">Всё равно записать</button></div>
+
+<script>
+var INIT = '', S = null, T0 = Date.now(), st = { dest: 'kafel', cur: 'Сум', order: 'Сначала USD', sup: '', file: '', pre: '', busy: false, cands: [], pick: '' };
+function $(id) { return document.getElementById(id); }
+function show(el, on) { el.classList.toggle('hid', !on); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function money(n, dec) { n = Number(n) || 0; var p = Math.abs(n).toFixed(dec || 0).split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' '); return (n < 0 ? '−' : '') + p.join(','); }
+function num(s) { s = String(s || '').replace(/[\s ]/g, '').replace(',', '.'); return /^\d+(\.\d{1,2})?$/.test(s) ? Number(s) : 0; }
+function fail(t) { $('err').textContent = t; show($('err'), true); }
+var EXEC = 'https://script.google.com/macros/s/AKfycbyMtHjZHFDbkupFK86boPDHr2rYWFhfXo0TmsE-SDCRVj-6ro_g-12qNaznsusIUQ/exec';
+var GAS = !!(window.google && google.script && google.script.run);
+var TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.initData ? Telegram.WebApp : null;
+function run(fn) { var args = Array.prototype.slice.call(arguments, 1), cb = args.pop();
+  if (GAS) { google.script.run.withSuccessHandler(cb).withFailureHandler(function (e) { cb({ ok: false, error: String(e && e.message || e) }); })[fn].apply(null, args); return; }
+  fetch(EXEC + '?api=1', { method: 'POST', body: JSON.stringify({ fn: fn, args: args }) })
+    .then(function (r) { return r.json(); }).then(cb)
+    .catch(function (e) { cb({ ok: false, error: 'нет связи с сервером: ' + (e && e.message || e) }); });
+}
+
+// ── поиск: без регистра, ё=е, латиница = кириллица
+var L2C = [['sh', 'ш'], ['ch', 'ч'], ['ya', 'я'], ['yu', 'ю'], ['yo', 'ё'], ['ts', 'ц'], ['a', 'а'], ['b', 'б'], ['v', 'в'], ['g', 'г'], ['d', 'д'], ['e', 'е'], ['j', 'ж'], ['z', 'з'], ['i', 'и'], ['y', 'й'], ['k', 'к'], ['l', 'л'], ['m', 'м'], ['n', 'н'], ['o', 'о'], ['p', 'п'], ['r', 'р'], ['s', 'с'], ['t', 'т'], ['u', 'у'], ['f', 'ф'], ['h', 'х'], ['x', 'х'], ['q', 'к'], ['c', 'с'], ['w', 'в']];
+function norm(s) { return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[«»"'`ʻʼ‘’]/g, '').replace(/\s+/g, ' ').trim(); }
+function toCyr(s) { L2C.forEach(function (p) { s = s.split(p[0]).join(p[1]); }); return s; }
+function toLat(s) { for (var i = L2C.length - 1; i >= 0; i--) s = s.split(L2C[i][1]).join(L2C[i][0]); return s.replace(/[ьъ]/g, '').replace(/ы/g, 'i').replace(/э/g, 'e').replace(/щ/g, 'sh'); }
+function keys(s) { var n = norm(s); return [n, toCyr(n), toLat(n)]; }
+
+function onInit(r) {
+  if (!r || !r.ok) { $('who').textContent = ''; return fail(r && r.error || 'Не открылось'); }
+  S = r; st.ms = { open: Date.now() - T0, server: r.ms };
+  var cash = r.mode === 'cash';
+  $('title').textContent = cash ? 'Наличные' : 'Перечисление';
+  $('who').textContent = 'Вносит: ' + r.name + (r.test ? ' · ТЕСТ (копия «Учёта»)' : '');
+  show($('photoBox'), !cash);
+  $('date').value = r.today; $('date').max = r.max; $('date').min = '2020-01-01';
+  $('rate').value = r.rate; $('rateLbl').textContent = 'Курс' + (r.rateDay ? ' (из «Курсов» на ' + r.rateDay.split('-').reverse().join('.') + ')' : '');
+  S.all = r.sups.map(function (x) { return { n: x.n, inn: x.inn, u: x.u, s: x.s, k: keys(x.n + ' ' + x.al) }; });
+  show($('form'), true); show($('bar'), true);
+  setDest('kafel');
+  if (r.pre) { st.pre = r.pre.id; $('photoBox').querySelector('label').textContent = 'Фото из группы'; $('photo').innerHTML = '<span>📎 фото из группы прикреплено</span>'; onPre(r.pre); }
+  draw(); check();
+  $('ms').textContent = 'открыто за ' + (st.ms.open / 1000).toFixed(1).replace('.', ',') + ' с (сервер ' + (r.ms / 1000).toFixed(1).replace('.', ',') + ' с) · поставщиков ' + r.sups.length;
+  run('bankAppLog', INIT, { what: 'open', mode: r.mode, ms: st.ms.open, server: r.ms, n: r.sups.length }, function () {});
+}
+
+function onPre(p) {
+  if (!p || p.st === 'none') { note('⚠ Фото из группы не найдено — пришлите его ещё раз или нажмите кнопку внизу чата.', 'bad'); st.pre = ''; return; }
+  if (p.st === 'used') { note('Это фото уже записано.', 'warn'); st.pre = ''; check(); return; }
+  if (p.st === 'reading') {
+    note('<span class="spin"></span> Бот ещё читает фото…', '');
+    setTimeout(function () { run('bankAppPre', INIT, st.pre, function (r) { onPre(r && r.ok ? r.pre : { st: 'reading' }); }); }, 2500);
+    return;
+  }
+  st.preReady = true;
+  if (!(p.f && p.f.date) && p.date0) $('date').value = p.date0;
+  if (p.st === 'ok') fillRead(p.f || {}, p, 'из группы');
+  else note('⚠ ' + (p.st === 'notpay' ? 'Не похоже на платёжку' : 'Не прочитал') + '. Впишите поля сами.', 'warn');
+  draw(); check();
+}
+function fillRead(f, r, how) {
+  st.cands = r.cands || []; st.pick = r.pick || ''; st.f = f;
+  if (f.sum) $('sum').value = money(f.sum, f.sum % 1 ? 2 : 0);
+  if (f.cur) { st.cur = f.cur; setSeg('cur', f.cur); }
+  if (f.date) $('date').value = f.date;
+  $('firm').value = f.firm || ''; $('inn').value = f.inn || '';
+  note('✅ Прочитано' + (r.ai ? ' (' + esc(r.ai) + ')' : '') + (how ? ' ' + how : '') + ' — проверьте поля.' + (f.purp ? '<br><small>📝 ' + esc(f.purp) + '</small>' : '') + (f.date ? '' : '<br>⚠ Дату с платёжки не прочитал — поставил ' + (r.date0 ? 'день фото' : 'сегодня') + ', проверьте.'), 'good');
+  if (st.pick && st.dest === 'kafel') pickSup(st.pick);
+}
+function setDest(v) {
+  st.dest = v; setSeg('dest', v);
+  var mag = v === 'magazin', cash = S && S.mode === 'cash';
+  show($('supBox'), !mag); show($('rateBox'), !mag);
+  show($('firmBox'), !cash || mag);
+  show($('inn').parentNode, !cash);
+  $('firmLbl').textContent = mag ? 'Кому платили (фирма)' : 'Фирма-получатель';
+  check(); hideDup();
+}
+$('dest').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; e.preventDefault(); setDest(b.dataset.v); });
+
+// ── список поставщиков: по ИНН — сверху, потом что прочитал ИИ, потом поиск
+function draw() {
+  if (!S) return;
+  var t0 = performance.now(), q = norm($('q').value), qk = q ? keys(q) : [], inn = $('inn').value.replace(/\D/g, '');
+  var rows = [];
+  S.all.forEach(function (x) {
+    var sc = 0;
+    if (inn.length === 9 && x.inn && x.inn.indexOf(inn) >= 0) sc = 1000;
+    if (q) {
+      var hit = 0;
+      x.k.forEach(function (k) { qk.forEach(function (w) { if (!w) return; if (k.indexOf(w) === 0) hit = Math.max(hit, 3); else if ((' ' + k).indexOf(' ' + w) >= 0) hit = Math.max(hit, 2); else if (k.indexOf(w) >= 0) hit = Math.max(hit, 1); }); });
+      if (!hit && sc < 1000) return;
+      sc += hit * 10;
+    } else {
+      if (st.pick === x.n) sc += 500;
+      var ci = st.cands.indexOf(x.n); if (ci >= 0) sc += 100 - ci;
+      if (x.shop) sc += 1;
+    }
+    rows.push({ x: x, sc: sc });
+  });
+  rows.sort(function (a, b) { return b.sc - a.sc || a.x.n.localeCompare(b.x.n, 'ru'); });
+  var h = rows.slice(0, 60).map(function (r) {
+    var x = r.x, tag = r.sc >= 1000 ? '<span class="tag">по ИНН</span>' : (!q && st.cands.indexOf(x.n) >= 0 ? '<span class="tag">с фото</span>' : '');
+    var d = 'долг: ' + money(x.u, 2) + ' $ · ' + money(x.s) + ' сум';
+    return '<div class="it' + (st.sup === x.n ? ' on' : '') + '" data-n="' + esc(x.n) + '">' + esc(x.n) + tag + '<small>' + d + '</small></div>';
+  }).join('');
+  $('list').innerHTML = h || '<div class="it"><small>никого не нашёл — проверьте написание</small></div>';
+  st.searchMs = Math.round((performance.now() - t0) * 10) / 10;
+}
+var tStart = null;
+function itemAt(e) { var t = e.target; while (t && t !== $('list') && !(t.classList && t.classList.contains('it'))) t = t.parentNode; return t && t.dataset && t.dataset.n ? t : null; }
+['mousedown', 'pointerdown'].forEach(function (ev) { $('list').addEventListener(ev, function (e) { if (itemAt(e)) e.preventDefault(); }); });
+$('list').addEventListener('touchstart', function (e) { var p = e.touches[0]; tStart = { x: p.clientX, y: p.clientY, sc: $('list').scrollTop }; }, { passive: true });
+$('list').addEventListener('touchend', function (e) {
+  var it = itemAt(e); if (!it || !tStart) return;
+  var p = e.changedTouches[0], moved = Math.abs(p.clientY - tStart.y) > 10 || Math.abs(p.clientX - tStart.x) > 10 || $('list').scrollTop !== tStart.sc;
+  tStart = null;
+  if (moved) return;                                   // это была прокрутка списка, а не выбор
+  e.preventDefault();                                  // без «щелчка» следом (он бы попал уже в сдвинутый список)
+  pickSup(it.dataset.n);
+});
+$('list').addEventListener('click', function (e) { var it = itemAt(e); if (it) pickSup(it.dataset.n); });
+function pickSup(n) {
+  st.sup = n;
+  var x = S.all.filter(function (y) { return y.n === n; })[0] || {};
+  $('debt').textContent = 'Долг сейчас: ' + money(x.u, 2) + ' $ и ' + money(x.s) + ' сум';
+  var q = $('q'); q.value = '✓ ' + n; q.classList.add('chosen'); q.blur();
+  show($('list'), false); check(); hideDup();
+}
+function unpick() { st.sup = ''; $('q').classList.remove('chosen'); $('debt').textContent = ''; show($('list'), true); }
+// нажали на выбранного — снова поиск (поле чистое, список открыт)
+$('q').addEventListener('focus', function () { if (st.sup) { $('q').value = ''; unpick(); draw(); check(); } });
+$('q').addEventListener('input', function () { if (st.sup) unpick(); show($('list'), true); draw(); check(); });
+$('inn').addEventListener('input', function () { draw(); });
+function seg(id, key) {
+  $(id).addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; e.preventDefault();
+    st[key] = b.dataset.v; Array.prototype.forEach.call($(id).children, function (c) { c.classList.toggle('on', c === b); }); check(); hideDup(); });
+}
+seg('cur', 'cur'); seg('order', 'order');
+function setSeg(id, v) { Array.prototype.forEach.call($(id).children, function (c) { c.classList.toggle('on', c.dataset.v === v); }); }
+$('sum').addEventListener('input', function () {
+  var s = this.value.replace(/[^\d.,]/g, ''), p = s.split(/[.,]/);
+  var i = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  this.value = p.length > 1 ? i + ',' + p.slice(1).join('').slice(0, 2) : i;
+  check(); hideDup();
+});
+['date', 'rate', 'firm', 'cmt'].forEach(function (id) { $(id).addEventListener('input', function () { check(); hideDup(); }); });
+
+function why() {
+  if (!S) return 'открываю…';
+  if (S.mode === 'pay' && !st.file && !(st.pre && st.preReady)) return st.pre ? 'фото ещё читается' : 'прикрепите фото платёжки';
+  if (st.busy) return '';
+  if (!(num($('sum').value) > 0)) return 'впишите сумму';
+  if (!$('date').value) return 'дата';
+  if (st.dest === 'magazin') return $('firm').value.trim() ? '' : 'кому платили';
+  if (!st.sup) return 'выберите поставщика';
+  var r = num($('rate').value);
+  if (!(r >= 8000 && r <= 20000)) return 'курс от 8 000 до 20 000';
+  return '';
+}
+function check() { var w = why(); $('save').disabled = !!w || st.busy; $('save').textContent = st.busy ? 'Записываю…' : (w ? 'Записать — ' + w : 'Записать'); }
+
+// ── фото: сжать в телефоне до 1600 точек и отправить на чтение
+$('file').addEventListener('change', function () {
+  var f = this.files && this.files[0]; if (!f) return;
+  var img = new Image(), url = URL.createObjectURL(f), t0 = Date.now();
+  img.onload = function () {
+    var k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    var data = c.toDataURL('image/jpeg', 0.85);
+    $('prev').src = data; show($('prev'), true); $('photoTxt').textContent = '↻ другое фото';
+    note('<span class="spin"></span> Читаю платёжку… (10–40 с)', '');
+    st.busy = true; st.file = ''; check();
+    run('bankAppRead', INIT, data.split(',')[1], 'image/jpeg', function (r) {
+      st.busy = false;
+      if (!r || !r.ok) { note('⚠ ' + esc(r && r.error || 'не получилось'), 'bad'); check(); return; }
+      st.file = r.file; st.pre = '';
+      if (r.read && r.pay) fillRead(r.f || {}, r, 'за ' + Math.round((Date.now() - t0) / 1000) + ' с');
+      else note('⚠ ' + esc(r.error || 'Не прочитал') + '. Фото сохранено — впишите поля сами.', 'warn');
+      draw(); check();
+    });
+  };
+  img.onerror = function () { note('⚠ Не смог открыть фото', 'bad'); };
+  img.src = url;
+});
+function note(h, cls) { var n = $('readNote'); n.innerHTML = h; n.className = 'note ' + (cls || ''); }
+
+// ── записать
+function hideDup() { show($('dupBox'), false); show($('force'), false); }
+function save(force) {
+  if (why() || st.busy) return;
+  st.busy = true; check(); hideDup();
+  var f = st.f || {};
+  var mag = st.dest === 'magazin';
+  var d = { dest: st.dest, sum: num($('sum').value), cur: st.cur, date: $('date').value, sup: mag ? '' : st.sup, rate: mag ? '' : num($('rate').value), order: st.order, cmt: $('cmt').value,
+    firm: $('firm').value, inn: $('inn').value, no: f.no || '', purp: f.purp || '', file: st.file, pre: st.file ? '' : st.pre };
+  var t0 = Date.now();
+  run('bankAppSave', INIT, d, !!force, function (r) {
+    st.busy = false; check();
+    if (r && r.dup && !r.ok) {
+      $('dupBox').innerHTML = '⚠ <b>Похоже на дубль:</b> ' + esc(r.dup) + '<br>Если это другая оплата — нажмите «Всё равно записать».';
+      show($('dupBox'), true); show($('force'), true); return;
+    }
+    if (!r || !r.ok) { $('dupBox').innerHTML = '⚠ ' + esc(r && (r.error || r.text) || 'не записано'); $('dupBox').className = 'note bad'; show($('dupBox'), true); return; }
+    $('doneTxt').innerHTML = r.wait ? '⚠ <b>Похоже на дубль</b> — отправлено в группу, решает Алишер.<br><small>' + esc(r.dup) + '</small>'
+      : '✅ <b>Записано</b> · ' + (mag ? 'Binokor magazin: ' + esc(d.firm) : 'Binokor kafel: ' + esc(st.sup)) + '<br>' + money(d.sum, d.cur === 'USD' ? 2 : 0) + ' ' + (d.cur === 'USD' ? '$' : 'сум') +
+        (mag ? '' : ' · курс ' + money(d.rate)) + '<br><small>Итог — в группе. Записано за ' + ((Date.now() - t0) / 1000).toFixed(1).replace('.', ',') + ' с</small>';
+    show($('form'), false); show($('bar'), false); show($('done'), true);
+    if (S.pre) show($('again'), false);
+    show($('close'), !!TG);
+    run('bankAppLog', INIT, { what: 'save', ms: Date.now() - t0, server: r.ms, search: st.searchMs }, function () {});
+  });
+}
+$('save').addEventListener('click', function () { save(false); });
+$('force').addEventListener('click', function () { save(true); });
+$('again').addEventListener('click', function () { location.reload(); });
+$('close').addEventListener('click', function () { if (TG) TG.close(); });
+
+// ── данные Телеграма: они в адресе страницы после # (google.script.url отдаёт адрес внешней страницы)
+function theme(th) {
+  try { var rs = document.documentElement.style;
+    if (th && th.bg_color) { rs.setProperty('--bg', th.bg_color); rs.setProperty('--tx', th.text_color || ''); rs.setProperty('--hint', th.hint_color || ''); rs.setProperty('--card', th.secondary_bg_color || ''); if (th.button_color) rs.setProperty('--acc', th.button_color); if (th.button_text_color) rs.setProperty('--acc-tx', th.button_text_color); }
+  } catch (e) {}
+}
+if (TG) {
+  try { TG.ready(); TG.expand(); } catch (e) {}
+  INIT = TG.initData; theme(TG.themeParams);
+  run('bankAppInit', INIT, onInit);
+} else if (GAS) google.script.url.getLocation(function (loc) {
+  var h = String(loc && loc.hash || ''), q = new URLSearchParams(h.charAt(0) === '#' ? h.slice(1) : h);
+  INIT = h.indexOf('tgWebAppData') >= 0 ? h : '';            // весь хвост — сервер сам разберёт (Google мог его раскодировать)
+  try { var th = JSON.parse(q.get('tgWebAppThemeParams') || '{}'), rs = document.documentElement.style;
+    if (th.bg_color) { rs.setProperty('--bg', th.bg_color); rs.setProperty('--tx', th.text_color || ''); rs.setProperty('--hint', th.hint_color || ''); rs.setProperty('--card', th.secondary_bg_color || ''); if (th.button_color) rs.setProperty('--acc', th.button_color); if (th.button_text_color) rs.setProperty('--acc-tx', th.button_text_color); }
+  } catch (e) {}
+  if (!INIT) { $('who').textContent = ''; return fail('Откройте форму кнопкой «Перечисление» или «Наличные» в группе Телеграма.'); }
+  run('bankAppInit', INIT, onInit);
+});
+else { $('who').textContent = ''; fail('Откройте форму кнопкой «Перечисление» или «Наличные» в группе Телеграма.'); }
+</script>
+</body>
+</html>
