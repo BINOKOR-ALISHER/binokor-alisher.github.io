@@ -325,7 +325,7 @@ function save(force) {
   var f = st.f || {};
   var mag = st.dest === 'magazin';
   var kv = S.mode === 'konv';
-  var d = { dest: st.dest, partner: st.partner || '', pfirm: $('pfrom').value, sum: num($('sum').value), cur: st.cur, date: $('date').value, sup: mag ? '' : st.sup, rate: mag && !kv ? '' : num($('rate').value), order: st.order, cmt: $('cmt').value,
+  var d = { dest: st.dest, partner: st.partner || '', pfirm: $('pfrom').value || (st.f && st.f.pfirm) || '', sum: num($('sum').value), cur: st.cur, date: $('date').value, sup: mag ? '' : st.sup, rate: mag && !kv ? '' : num($('rate').value), order: st.order, cmt: $('cmt').value,
     firm: $('firm').value, inn: $('inn').value, no: f.no || '', purp: f.purp || '', file: st.file, pre: st.file ? '' : st.pre };
   var t0 = Date.now();
   run('bankAppSave', INIT, d, !!force, function (r) {
