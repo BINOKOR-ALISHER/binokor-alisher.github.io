@@ -68,6 +68,12 @@
       <div class="narrow"><label>Валюта</label><div class="seg" id="cur"><button data-v="Сум" class="on">Сум</button><button data-v="USD">USD</button></div></div>
     </div>
     <label>Дата платежа</label><input id="date" type="date">
+    <div id="partBox" class="hid">
+    <label>Партнёр</label>
+    <input id="pq" placeholder="Начните вводить имя партнёра" autocomplete="off">
+    <div class="list" id="plist"></div>
+    </div>
+    <div id="fromBox" class="hid"><label>Откуда (фирма партнёра)</label><input id="pfrom" autocomplete="off"></div>
     <div id="firmBox">
       <div class="row">
         <div><label id="firmLbl">Фирма-получатель</label><input id="firm" autocomplete="off"></div>
@@ -76,7 +82,7 @@
     </div>
 
     <div id="supBox">
-    <label>Поставщик</label>
+    <label id="supLbl">Поставщик</label>
     <input id="q" placeholder="Начните вводить, например «Су»" autocomplete="off">
     <div class="list" id="list"></div>
     <div id="debt" class="sub" style="margin:6px 0 0"></div>
@@ -84,8 +90,8 @@
 
     <div id="rateBox">
       <label id="rateLbl">Курс</label><input id="rate" inputmode="numeric" autocomplete="off">
-      <label>Очерёдность погашения</label>
-      <div class="seg" id="order"><button data-v="Сначала USD" class="on">Сначала USD</button><button data-v="Сначала сум">Сначала сум</button></div>
+      <div id="orderBox"><label>Очерёдность погашения</label>
+      <div class="seg" id="order"><button data-v="Сначала USD" class="on">Сначала USD</button><button data-v="Сначала сум">Сначала сум</button></div></div>
     </div>
     <label>Комментарий</label><input id="cmt" autocomplete="off" maxlength="200" placeholder="необязательно">
     <div id="dupBox" class="note warn hid"></div>
@@ -128,8 +134,11 @@ function keys(s) { var n = norm(s); return [n, toCyr(n), toLat(n)]; }
 function onInit(r) {
   if (!r || !r.ok) { $('who').textContent = ''; return fail(r && r.error || 'Не открылось'); }
   S = r; st.ms = { open: Date.now() - T0, server: r.ms };
-  var cash = r.mode === 'cash';
-  $('title').textContent = cash ? 'Наличные' : 'Перечисление';
+  var cash = r.mode === 'cash', konv = r.mode === 'konv';
+  $('title').textContent = cash ? 'Наличные' : konv ? 'Конвертация' : 'Перечисление';
+  S.parts = (r.partners || []).map(function (n) { return { n: n, k: keys(n) }; });
+  show($('partBox'), konv); show($('fromBox'), konv); show($('orderBox'), !konv);
+  if (konv) { $('supLbl').textContent = 'Кому (поставщик)'; drawP(); }
   $('who').textContent = 'Вносит: ' + r.name + (r.test ? ' · ТЕСТ (копия «Учёта»)' : '');
   show($('photoBox'), !cash);
   $('date').value = r.today; $('date').max = r.max; $('date').min = '2020-01-01';
@@ -159,6 +168,7 @@ function onPre(p) {
 }
 function fillRead(f, r, how) {
   st.cands = r.cands || []; st.pick = r.pick || ''; st.f = f;
+  if (S.mode === 'konv') { $('pfrom').value = f.pfirm || ''; if (r.partner && !st.partner) pickPart(r.partner); }
   if (f.sum) $('sum').value = money(f.sum, f.sum % 1 ? 2 : 0);
   if (f.cur) { st.cur = f.cur; setSeg('cur', f.cur); }
   if (f.date) $('date').value = f.date;
@@ -169,10 +179,11 @@ function fillRead(f, r, how) {
 function setDest(v) {
   st.dest = v; setSeg('dest', v);
   var mag = v === 'magazin', cash = S && S.mode === 'cash';
-  show($('supBox'), !mag); show($('rateBox'), !mag);
+  var konv = S && S.mode === 'konv';
+  show($('supBox'), !mag); show($('rateBox'), !mag || konv);
   show($('firmBox'), !cash || mag);
   show($('inn').parentNode, !cash);
-  $('firmLbl').textContent = mag ? 'Кому платили (фирма)' : 'Фирма-получатель';
+  $('firmLbl').textContent = konv ? 'Куда (фирма-получатель)' : mag ? 'Кому платили (фирма)' : 'Фирма-получатель';
   check(); hideDup();
 }
 $('dest').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; e.preventDefault(); setDest(b.dataset.v); });
@@ -206,19 +217,34 @@ function draw() {
   $('list').innerHTML = h || '<div class="it"><small>никого не нашёл — проверьте написание</small></div>';
   st.searchMs = Math.round((performance.now() - t0) * 10) / 10;
 }
-var tStart = null;
-function itemAt(e) { var t = e.target; while (t && t !== $('list') && !(t.classList && t.classList.contains('it'))) t = t.parentNode; return t && t.dataset && t.dataset.n ? t : null; }
-['mousedown', 'pointerdown'].forEach(function (ev) { $('list').addEventListener(ev, function (e) { if (itemAt(e)) e.preventDefault(); }); });
-$('list').addEventListener('touchstart', function (e) { var p = e.touches[0]; tStart = { x: p.clientX, y: p.clientY, sc: $('list').scrollTop }; }, { passive: true });
-$('list').addEventListener('touchend', function (e) {
-  var it = itemAt(e); if (!it || !tStart) return;
-  var p = e.changedTouches[0], moved = Math.abs(p.clientY - tStart.y) > 10 || Math.abs(p.clientX - tStart.x) > 10 || $('list').scrollTop !== tStart.sc;
-  tStart = null;
-  if (moved) return;                                   // это была прокрутка списка, а не выбор
-  e.preventDefault();                                  // без «щелчка» следом (он бы попал уже в сдвинутый список)
-  pickSup(it.dataset.n);
-});
-$('list').addEventListener('click', function (e) { var it = itemAt(e); if (it) pickSup(it.dataset.n); });
+function bindPick(list, cb) {
+  var tStart = null;
+  function itemAt(e) { var t = e.target; while (t && t !== list && !(t.classList && t.classList.contains('it'))) t = t.parentNode; return t && t.dataset && t.dataset.n ? t : null; }
+  ['mousedown', 'pointerdown'].forEach(function (ev) { list.addEventListener(ev, function (e) { if (itemAt(e)) e.preventDefault(); }); });
+  list.addEventListener('touchstart', function (e) { var p = e.touches[0]; tStart = { x: p.clientX, y: p.clientY, sc: list.scrollTop }; }, { passive: true });
+  list.addEventListener('touchend', function (e) {
+    var it = itemAt(e); if (!it || !tStart) return;
+    var p = e.changedTouches[0], moved = Math.abs(p.clientY - tStart.y) > 10 || Math.abs(p.clientX - tStart.x) > 10 || list.scrollTop !== tStart.sc;
+    tStart = null;
+    if (moved) return;                                   // это была прокрутка списка, а не выбор
+    e.preventDefault();                                  // без «щелчка» следом (он бы попал уже в сдвинутый список)
+    cb(it.dataset.n);
+  });
+  list.addEventListener('click', function (e) { var it = itemAt(e); if (it) cb(it.dataset.n); });
+}
+bindPick($('list'), function (n) { pickSup(n); });
+bindPick($('plist'), function (n) { pickPart(n); });
+// партнёр — «Конвертация → Свод»
+function drawP() {
+  if (!S) return;
+  var q = norm($('pq').value), qk = q ? keys(q) : [];
+  var rows = (S.parts || []).filter(function (x) { return !q || x.k.some(function (k) { return qk.some(function (w) { return w && k.indexOf(w) >= 0; }); }); });
+  $('plist').innerHTML = rows.map(function (x) { return '<div class="it' + (st.partner === x.n ? ' on' : '') + '" data-n="' + esc(x.n) + '">' + esc(x.n) + '</div>'; }).join('') ||
+    '<div class="it"><small>нет такого партнёра в «Своде»</small></div>';
+}
+function pickPart(n) { st.partner = n; var q = $('pq'); q.value = '✓ ' + n; q.classList.add('chosen'); q.blur(); show($('plist'), false); check(); hideDup(); }
+$('pq').addEventListener('focus', function () { if (st.partner) { st.partner = ''; $('pq').value = ''; $('pq').classList.remove('chosen'); show($('plist'), true); drawP(); check(); } });
+$('pq').addEventListener('input', function () { if (st.partner) { st.partner = ''; $('pq').classList.remove('chosen'); } show($('plist'), true); drawP(); check(); });
 function pickSup(n) {
   st.sup = n;
   var x = S.all.filter(function (y) { return y.n === n; })[0] || {};
@@ -247,10 +273,16 @@ $('sum').addEventListener('input', function () {
 
 function why() {
   if (!S) return 'открываю…';
-  if (S.mode === 'pay' && !st.file && !(st.pre && st.preReady)) return st.pre ? 'фото ещё читается' : 'прикрепите фото платёжки';
+  if ((S.mode === 'pay' || S.mode === 'konv') && !st.file && !(st.pre && st.preReady)) return st.pre ? 'фото ещё читается' : 'прикрепите фото платёжки';
   if (st.busy) return '';
   if (!(num($('sum').value) > 0)) return 'впишите сумму';
   if (!$('date').value) return 'дата';
+  if (S.mode === 'konv') {
+    if (!st.partner) return 'выберите партнёра';
+    if (st.dest === 'kafel' && !st.sup) return 'выберите, кому (поставщик)';
+    var kr = num($('rate').value);
+    return kr >= 8000 && kr <= 20000 ? '' : 'курс от 8 000 до 20 000';
+  }
   if (st.dest === 'magazin') return $('firm').value.trim() ? '' : 'кому платили';
   if (!st.sup) return 'выберите поставщика';
   var r = num($('rate').value);
@@ -292,7 +324,8 @@ function save(force) {
   st.busy = true; check(); hideDup();
   var f = st.f || {};
   var mag = st.dest === 'magazin';
-  var d = { dest: st.dest, sum: num($('sum').value), cur: st.cur, date: $('date').value, sup: mag ? '' : st.sup, rate: mag ? '' : num($('rate').value), order: st.order, cmt: $('cmt').value,
+  var kv = S.mode === 'konv';
+  var d = { dest: st.dest, partner: st.partner || '', pfirm: $('pfrom').value, sum: num($('sum').value), cur: st.cur, date: $('date').value, sup: mag ? '' : st.sup, rate: mag && !kv ? '' : num($('rate').value), order: st.order, cmt: $('cmt').value,
     firm: $('firm').value, inn: $('inn').value, no: f.no || '', purp: f.purp || '', file: st.file, pre: st.file ? '' : st.pre };
   var t0 = Date.now();
   run('bankAppSave', INIT, d, !!force, function (r) {
@@ -303,7 +336,7 @@ function save(force) {
     }
     if (!r || !r.ok) { $('dupBox').innerHTML = '⚠ ' + esc(r && (r.error || r.text) || 'не записано'); $('dupBox').className = 'note bad'; show($('dupBox'), true); return; }
     $('doneTxt').innerHTML = r.wait ? '⚠ <b>Похоже на дубль</b> — отправлено в группу, решает Алишер.<br><small>' + esc(r.dup) + '</small>'
-      : '✅ <b>Записано</b> · ' + (mag ? 'Binokor magazin: ' + esc(d.firm) : 'Binokor kafel: ' + esc(st.sup)) + '<br>' + money(d.sum, d.cur === 'USD' ? 2 : 0) + ' ' + (d.cur === 'USD' ? '$' : 'сум') +
+      : '✅ <b>Записано</b> · ' + (kv ? 'Конвертация · ' + esc(d.partner) + ' → ' + (mag ? 'Binokor magazin' : esc(st.sup)) : mag ? 'Binokor magazin: ' + esc(d.firm) : 'Binokor kafel: ' + esc(st.sup)) + '<br>' + money(d.sum, d.cur === 'USD' ? 2 : 0) + ' ' + (d.cur === 'USD' ? '$' : 'сум') +
         (mag ? '' : ' · курс ' + money(d.rate)) + '<br><small>Итог — в группе. Записано за ' + ((Date.now() - t0) / 1000).toFixed(1).replace('.', ',') + ' с</small>';
     show($('form'), false); show($('bar'), false); show($('done'), true);
     if (S.pre) show($('again'), false);
