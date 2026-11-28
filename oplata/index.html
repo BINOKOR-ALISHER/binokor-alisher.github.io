@@ -5,6 +5,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Оплаты Бинокор</title>
+<link rel="preconnect" href="https://script.google.com"><link rel="preconnect" href="https://script.googleusercontent.com">
+<script>
+// данные Телеграма уже в адресе (#tgWebAppData=…) — запрос формы уходит сразу, вместе с загрузкой библиотеки Телеграма (скорость, 28.11.2026)
+var T00 = Date.now(), EARLY = null;
+try { if (location.hash.indexOf('tgWebAppData=') >= 0 && !(window.google && window.google.script)) EARLY = fetch('https://script.google.com/macros/s/AKfycbyMtHjZHFDbkupFK86boPDHr2rYWFhfXo0TmsE-SDCRVj-6ro_g-12qNaznsusIUQ/exec?api=1', { method: 'POST', body: JSON.stringify({ fn: 'bankAppInit', args: [location.hash.slice(1)] }) }).then(function (r) { return r.json(); }); } catch (e) { EARLY = null; }
+</script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root { --bg: #ffffff; --tx: #1b1f23; --hint: #6b7378; --card: #f2f4f5; --line: #dde2e4; --acc: #0f7c8c; --acc-tx: #ffffff; --warn: #fff4d6; --bad: #fde2e2; --ok: #e3f4e1; }
@@ -107,7 +113,7 @@
 <div class="bar hid" id="bar"><button id="save" disabled>Записать</button><button id="force" class="btn2 hid">Всё равно записать</button></div>
 
 <script>
-var INIT = '', S = null, T0 = Date.now(), st = { dest: 'kafel', cur: 'Сум', order: 'Сначала USD', sup: '', file: '', pre: '', busy: false, cands: [], pick: '' };
+var INIT = '', S = null, T0 = window.T00 || Date.now(), st = { dest: 'kafel', cur: 'Сум', order: 'Сначала USD', sup: '', file: '', pre: '', busy: false, cands: [], pick: '' };
 function $(id) { return document.getElementById(id); }
 function show(el, on) { el.classList.toggle('hid', !on); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -358,7 +364,8 @@ function theme(th) {
 if (TG) {
   try { TG.ready(); TG.expand(); } catch (e) {}
   INIT = TG.initData; theme(TG.themeParams);
-  run('bankAppInit', INIT, onInit);
+  if (EARLY) EARLY.then(function (r) { if (r && r.ok) onInit(r); else run('bankAppInit', INIT, onInit); }, function () { run('bankAppInit', INIT, onInit); });
+  else run('bankAppInit', INIT, onInit);
 } else if (GAS) google.script.url.getLocation(function (loc) {
   var h = String(loc && loc.hash || ''), q = new URLSearchParams(h.charAt(0) === '#' ? h.slice(1) : h);
   INIT = h.indexOf('tgWebAppData') >= 0 ? h : '';            // весь хвост — сервер сам разберёт (Google мог его раскодировать)
